@@ -5,7 +5,7 @@ require 'time'
 require 'socket'
 require 'optparse'
 
-options = { :start_date = '2012-01-01' }
+options = { :start_date => '2012-01-01' }
 OptionParser.new do |opts|
   opts.banner = "Usage: pagerduty_to_graphite.rb [options]"
   opts.on("--pagerduty_url URL", "Pagerduty URL") do |v|
