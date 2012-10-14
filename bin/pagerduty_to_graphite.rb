@@ -1,9 +1,11 @@
-require 'rest-client'
 require 'json'
 require 'date'
 require 'time'
 require 'socket'
 require 'optparse'
+require 'net/http'
+require 'uri'
+
 
 options = { :start_date => '2012-01-01' }
 OptionParser.new do |opts|
@@ -39,18 +41,26 @@ if options[:carbon_socket] =~ /^(carbon:)?([^:]+):([0-9]+)$/
   s = TCPSocket.new host, port
 end
 
+uri = URI.parse(options[:pagerduty_url])
+unless uri.is_a? URI::HTTP or uri.is_a? URI::HTTPS
+  puts "Invalid Pagerduty URL: #{options[:pagerduty_url]}"
+  puts "Must be a complete http:// or https:// URL."
+  exit 1
+end
+http = Net::HTTP.new(uri.host, uri.port)
+
 last_date = options[:start_date]
 last_incident_number = 0
 while true
   # Connect to PagerDuty Incidents API
   # Make sure to get the results in ascending order of creation date
-  c = RestClient::Resource.new("#{options[:pagerduty_url]}/api/v1/incidents?since=#{last_date}&sort_by=created_on:asc",
-                               options[:pagerduty_user],
-                               options[:pagerduty_pass])
+  request = Net::HTTP::Get.new("#{uri.request_uri}/api/v1/incidents?since=#{last_date}&sort_by=created_on:asc")
+  request.basic_auth(options[:pagerduty_user], options[:pagerduty_pass])
+  response = http.request(request)
 
   # Retrieve as many incidents as we can
   # PagerDuty caps us at 100 per request
-  incidents = JSON.parse(c.get)["incidents"]
+  incidents = JSON.parse(response.body)["incidents"]
   puts "FOUND #{incidents.count} INCIDENTS SINCE #{last_date}"
 
   incidents.each do |alert|
