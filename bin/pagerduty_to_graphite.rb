@@ -3,31 +3,54 @@ require 'json'
 require 'date'
 require 'time'
 require 'socket'
+require 'optparse'
 
-# First date that we should start with
-@date = '2012-02-26'
-@old_date = @date
+options = { :start_date = '2012-01-01' }
+OptionParser.new do |opts|
+  opts.banner = "Usage: pagerduty_to_graphite.rb [options]"
+  opts.on("--pagerduty_url URL", "Pagerduty URL") do |v|
+    options[:pagerduty_url] = v
+  end
+  opts.on("--pagerduty_user USERNAME", "Pagerduty username") do |v|
+    options[:pagerduty_user] = v
+  end
+  opts.on("--pagerduty_pass PASSWORD", "Pagerduty password") do |v|
+    options[:pagerduty_pass] = v
+  end
+  opts.on("--carbon_socket HOST:PORT", "Graphite Carbon socket") do |v|
+    options[:carbon_socket] = v
+  end
+  opts.on("--start_date YYYY-MM-DD", "Earliest date to retrieve from Pagerduty") do |v|
+    options[:start_date] = v
+  end
+end.parse!
 
-# Connect to PagerDuty Incidents API
-c = RestClient::Resource.new("#{ENV["PAGERDUTY_URL"]}/api/v1/incidents?since=#{@date}",
-                             ENV["PAGERDUTY_USER"],
-                             ENV["PAGERDUTY_PASS"])
+required_opts = [:pagerduty_url, :pagerduty_user, :pagerduty_pass, :carbon_socket, :start_date]
+required_opts.each do |o|
+  unless options[o]
+    puts "Missing required parameter --#{o.to_s}"
+    exit 2
+  end
+end
 
 # Connect to Graphite (Carbon) listener
-carbon_url = ENV["CARBON_URL"].dup
-if (carbon_url =~ /^carbon:\/\//)
-  carbon_url.gsub!(/carbon:\/\//, '')
-  host, port = carbon_url.split(':')
+if options[:carbon_socket] =~ /^(carbon:)?([^:]+):([0-9]+)$/
+  host, port = $2, $3
   s = TCPSocket.new host, port
 end
 
-# Retrieve as many incidents as we can
-# PagerDuty caps us at 100 per request
-@incidents = JSON.parse(c.get)["incidents"]
+last_date = options[:start_date]
+do
+  # Connect to PagerDuty Incidents API
+  c = RestClient::Resource.new("#{options[:pagerduty_url]}/api/v1/incidents?since=#{last_date}",
+                               options[:pagerduty_user],
+                               options[:pagerduty_pass])
 
-# Loop through our incidents
-until @incidents.none?
-  @incidents.each do |alert|
+  # Retrieve as many incidents as we can
+  # PagerDuty caps us at 100 per request
+  incidents = JSON.parse(c.get)["incidents"]
+
+  incidents.each do |alert|
     # Customize based on your use case
     case alert['service']['name']
     when 'Pingdom'
@@ -41,23 +64,15 @@ until @incidents.none?
     else
       puts "UNKNOWN ALERT: #{alert.to_json}"
     end
+
     # If have a valid metric string push it to Graphite
     if metric
       s.puts "alerts.#{metric} 1 #{Time.parse(alert['created_on']).to_i}"
     end
+
     # Bump our start date to the last known date
-    @old_date = @date
-    @date = Time.parse(alert['created_on']).to_date.to_s
+    last_date = Time.parse(alert['created_on']).to_date.to_s
   end
-  if ((@date === @old_date) && (@incidents.count < 100))
-    # We've gathered everything available
-    puts "FINISHED"
-    exit
-  else
-    # Retrieve some more and loop through again
-    c = RestClient::Resource.new("#{ENV["PAGERDUTY_URL"]}/api/v1/incidents?since=#{@date}",
-                                 ENV["PAGERDUTY_USER"],
-                                 ENV["PAGERDUTY_PASS"])
-    @incidents = JSON.parse(c.get)["incidents"]
-  end
-end
+while incidents.count
+
+puts "FINISHED"
