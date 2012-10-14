@@ -78,9 +78,7 @@ while true
     end
   end
   
-  # Stop if there were no incidents retrieved,
-  # and stop if we retrieved the last 100-page of incidents
-  break unless incidents.count > 0
+  # Stop if we retrieved the last 100-page of incidents
   break if incidents.count < 100
   
   # Bump our start date to the last known date
