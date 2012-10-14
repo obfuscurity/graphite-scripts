@@ -40,17 +40,24 @@ if options[:carbon_socket] =~ /^(carbon:)?([^:]+):([0-9]+)$/
 end
 
 last_date = options[:start_date]
-do
+last_incident_number = 0
+while true
   # Connect to PagerDuty Incidents API
-  c = RestClient::Resource.new("#{options[:pagerduty_url]}/api/v1/incidents?since=#{last_date}",
+  # Make sure to get the results in ascending order of creation date
+  c = RestClient::Resource.new("#{options[:pagerduty_url]}/api/v1/incidents?since=#{last_date}&sort_by=created_on:asc",
                                options[:pagerduty_user],
                                options[:pagerduty_pass])
 
   # Retrieve as many incidents as we can
   # PagerDuty caps us at 100 per request
   incidents = JSON.parse(c.get)["incidents"]
+  puts "FOUND #{incidents.count} INCIDENTS SINCE #{last_date}"
 
   incidents.each do |alert|
+    # Don't double-count incidents on the since date
+    # This assumes incidents numbers are monotonically increasing
+    next if alert['incident_number'].to_i <= last_incident_number
+
     # Customize based on your use case
     case alert['service']['name']
     when 'Pingdom'
@@ -69,10 +76,16 @@ do
     if metric
       s.puts "alerts.#{metric} 1 #{Time.parse(alert['created_on']).to_i}"
     end
-
-    # Bump our start date to the last known date
-    last_date = Time.parse(alert['created_on']).to_date.to_s
   end
-while incidents.count
+  
+  # Stop if there were no incidents retrieved,
+  # and stop if we retrieved the last 100-page of incidents
+  break unless incidents.count > 0
+  break if incidents.count < 100
+  
+  # Bump our start date to the last known date
+  last_date = Time.parse(incidents.last['created_on']).to_date.to_s
+  last_incident_number = incidents.last['incident_number'].to_i
+end
 
 puts "FINISHED"
