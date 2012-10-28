@@ -1,3 +1,5 @@
+#!/usr/bin/env ruby
+
 require 'json'
 require 'date'
 require 'time'
@@ -10,19 +12,19 @@ require 'uri'
 options = { :start_date => '2012-01-01' }
 OptionParser.new do |opts|
   opts.banner = "Usage: pagerduty_to_graphite.rb [options]"
-  opts.on("--pagerduty_url URL", "Pagerduty URL") do |v|
+  opts.on("--url URL", "--pagerduty_url URL", "Pagerduty URL") do |v|
     options[:pagerduty_url] = v
   end
-  opts.on("--pagerduty_user USERNAME", "Pagerduty username") do |v|
+  opts.on("-u USERNAME", "--pagerduty_user USERNAME", "Pagerduty username") do |v|
     options[:pagerduty_user] = v
   end
-  opts.on("--pagerduty_pass PASSWORD", "Pagerduty password") do |v|
+  opts.on("-p PASSWORD", "--pagerduty_pass PASSWORD", "Pagerduty password") do |v|
     options[:pagerduty_pass] = v
   end
-  opts.on("--carbon_socket HOST:PORT", "Graphite Carbon socket") do |v|
+  opts.on("-c HOST:PORT", "--carbon_socket HOST:PORT", "Graphite Carbon socket") do |v|
     options[:carbon_socket] = v
   end
-  opts.on("--start_date YYYY-MM-DD", "Earliest date to retrieve from Pagerduty") do |v|
+  opts.on("-s YYYY-MM-DD", "--start_date YYYY-MM-DD", "Earliest date to retrieve from Pagerduty") do |v|
     options[:start_date] = v
   end
 end.parse!
@@ -36,9 +38,9 @@ required_opts.each do |o|
 end
 
 # Connect to Graphite (Carbon) listener
-if options[:carbon_socket] =~ /^(carbon:)?([^:]+):([0-9]+)$/
+if options[:carbon_socket] =~ /^(carbon:\/\/)?([^:]+):([0-9]+)$/
   host, port = $2, $3
-  s = TCPSocket.new host, port
+  carbon = TCPSocket.new host, port
 end
 
 uri = URI.parse(options[:pagerduty_url])
@@ -84,7 +86,7 @@ while true
 
     # If have a valid metric string push it to Graphite
     if metric
-      s.puts "alerts.#{metric} 1 #{Time.parse(alert['created_on']).to_i}"
+      carbon.puts "alerts.#{metric} 1 #{Time.parse(alert['created_on']).to_i}"
     end
   end
   
