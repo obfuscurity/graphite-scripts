@@ -53,10 +53,11 @@ http = Net::HTTP.new(uri.host, uri.port)
 
 last_date = options[:start_date]
 last_incident_number = 0
+offset = 0
 while true
   # Connect to PagerDuty Incidents API
   # Make sure to get the results in ascending order of creation date
-  request = Net::HTTP::Get.new("#{uri.request_uri}/api/v1/incidents?since=#{last_date}&sort_by=created_on:asc")
+  request = Net::HTTP::Get.new("#{uri.request_uri}/api/v1/incidents?since=#{last_date}&sort_by=created_on:asc&offset=#{offset}")
   request.basic_auth(options[:pagerduty_user], options[:pagerduty_pass])
   response = http.request(request)
 
@@ -94,7 +95,12 @@ while true
   break if incidents.count < 100
   
   # Bump our start date to the last known date
-  last_date = Time.parse(incidents.last['created_on']).to_date.to_s
+  if last_date == Time.parse(incidents.last['created_on']).to_date.to_s
+    offset += 100
+  else
+    last_date = Time.parse(incidents.last['created_on']).to_date.to_s
+    offset = 0
+  end
   last_incident_number = incidents.last['incident_number'].to_i
 end
 
