@@ -78,9 +78,13 @@ while true
     when 'nagios'
       data = alert['trigger_summary_data']
       outage = data['SERVICEDESC'] === '' ? 'host_down' : data['SERVICEDESC']
-      metric = "nagios.#{data['HOSTNAME'].gsub(/\./, '_')}.#{outage}"
+      begin
+        metric = "nagios.#{data['HOSTNAME'].gsub(/\./, '_')}.#{outage}"
+      rescue
+        puts "UNKNOWN ALERT: #{alert.to_json}"
+      end
     when 'Enterprise Zendesk'
-        metric = "enterprise.zendesk.#{alert['service']['id']}"
+      metric = "enterprise.zendesk.#{alert['service']['id']}"
     else
       puts "UNKNOWN ALERT: #{alert.to_json}"
     end
