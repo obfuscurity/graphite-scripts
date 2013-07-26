@@ -5,7 +5,7 @@ require 'date'
 require 'time'
 require 'socket'
 require 'optparse'
-require 'net/http'
+require 'net/https'
 require 'uri'
 
 
