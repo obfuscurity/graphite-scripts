@@ -24,17 +24,25 @@ OptionParser.new do |opts|
   opts.on("-c HOST:PORT", "--carbon_socket HOST:PORT", "Graphite Carbon socket") do |v|
     options[:carbon_socket] = v
   end
+  opts.on("-k API_KEY", "--key API_KEY", "Pagerduty API Key") do |v|
+    options[:pagerduty_apikey] = v
+  end
   opts.on("-s YYYY-MM-DD", "--start_date YYYY-MM-DD", "Earliest date to retrieve from Pagerduty") do |v|
     options[:start_date] = v
   end
 end.parse!
 
-required_opts = [:pagerduty_url, :pagerduty_user, :pagerduty_pass, :carbon_socket, :start_date]
+required_opts = [:pagerduty_url, :carbon_socket, :start_date]
 required_opts.each do |o|
   unless options[o]
     puts "Missing required parameter --#{o.to_s}"
     exit 2
   end
+end
+
+unless options.include?(:pagerduty_apikey) or (options.include?(:pagerduty_user) and options.include?(:pagerduty_pass))
+  puts "Missing authentication parameters, either apikey or username and password"
+  exit 2
 end
 
 # Connect to Graphite (Carbon) listener
@@ -44,12 +52,16 @@ if options[:carbon_socket] =~ /^(carbon:\/\/)?([^:]+):([0-9]+)$/
 end
 
 uri = URI.parse(options[:pagerduty_url])
-unless uri.is_a? URI::HTTP or uri.is_a? URI::HTTPS
+unless uri.is_a? URI::HTTPS
   puts "Invalid Pagerduty URL: #{options[:pagerduty_url]}"
-  puts "Must be a complete http:// or https:// URL."
+  puts "Must be a complete https:// URL."
   exit 1
 end
+
 http = Net::HTTP.new(uri.host, uri.port)
+
+# force SSL since we are passing creds
+http.use_ssl = true
 
 last_date = options[:start_date]
 last_incident_number = 0
@@ -58,7 +70,14 @@ while true
   # Connect to PagerDuty Incidents API
   # Make sure to get the results in ascending order of creation date
   request = Net::HTTP::Get.new("#{uri.request_uri}/api/v1/incidents?since=#{last_date}&sort_by=created_on:asc&offset=#{offset}")
-  request.basic_auth(options[:pagerduty_user], options[:pagerduty_pass])
+
+  # default to api if specified
+  if options[:pagerduty_apikey]
+    request['Authorization'] = 'Token token=' + options[:pagerduty_apikey]
+  else
+    request.basic_auth(options[:pagerduty_user], options[:pagerduty_pass])
+  end
+
   response = http.request(request)
 
   # Retrieve as many incidents as we can
@@ -109,3 +128,4 @@ while true
 end
 
 puts "FINISHED"
+
