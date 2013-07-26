@@ -104,6 +104,8 @@ while true
       end
     when 'Enterprise Zendesk'
       metric = "enterprise.zendesk.#{alert['service']['id']}"
+    when 'Sensu'
+      metric = "sensu.#{alert['service']['id']}"
     else
       puts "UNKNOWN ALERT: #{alert.to_json}"
     end
