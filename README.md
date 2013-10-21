@@ -1,7 +1,7 @@
 Graphite Scripts
 ================
 
-This projects contains a variety of scripts for working with [Graphite](https://github.com/graphite-project).
+This project contains a variety of scripts for working with [Graphite](https://github.com/graphite-project).
 
 ### Django Password Hash
 
