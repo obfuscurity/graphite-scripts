@@ -9,12 +9,15 @@
 # configured in your carbon.conf. Note that
 # they must be numerically indexed from 1.
 # (e.g. [cache:1], [cache:2], [cache:3]
+#
+# You can specfiy the location of the carbon conf in the VAR CONF below, if it's in the /etc/carbon
+# DIR then this script will be okay
 
 PID_DIR=/opt/graphite/storage
 DAEMON=/opt/graphite/bin/carbon-cache.py
 NAME=carbon-cache
 INSTANCES=6
-
+CONF=/etc/carbon/carbon.conf
 set -e
 
 test -x $DAEMON || exit 0
@@ -24,7 +27,7 @@ case "$1" in
   start)
     for INSTANCE in $(seq 1 $INSTANCES); do
       echo -n "Starting ${NAME}-${INSTANCE}: "
-      if start-stop-daemon --start --quiet --pidfile "${NAME}-${INSTANCE}.pid" --exec $DAEMON start 1>/dev/null -- --instance=${INSTANCE}
+      if start-stop-daemon --start --quiet --pidfile "${NAME}-${INSTANCE}.pid" --exec $DAEMON start 1>/dev/null -- --instance=${INSTANCE} --config=${CONF}
       then
         echo "succeeded"
       else
@@ -37,7 +40,7 @@ case "$1" in
   stop)
     for INSTANCE in $(seq 1 $INSTANCES); do
       echo -n "Stopping ${NAME}-${INSTANCE}: "
-      $DAEMON stop --instance=${INSTANCE} 1>/dev/null
+      $DAEMON stop --instance=${INSTANCE} --config=${CONF} 1>/dev/null
       echo "stopped"
     done
     exit 0
